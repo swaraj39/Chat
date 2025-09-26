@@ -1,6 +1,11 @@
 package com.example.SpringWebSocket.Controllers;
 
 import com.example.SpringWebSocket.Model.Body;
+import com.example.SpringWebSocket.Repository.ChannelRepo;
+
+import java.nio.channels.Channel;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -11,6 +16,9 @@ import org.springframework.stereotype.Controller;
 public class ChatController {
 
     private final SimpMessagingTemplate simpMessagingTemplate;
+
+    @Autowired
+    private ChannelRepo channelRepo;
 
     public ChatController(SimpMessagingTemplate simpMessagingTemplate) {
         this.simpMessagingTemplate = simpMessagingTemplate;
@@ -23,5 +31,12 @@ public class ChatController {
 
         // Send to dynamic topic /topic/messages/{channelName}
         simpMessagingTemplate.convertAndSend("/topic/messages/" + body.getChannelName(), response);
+    }
+
+    @MessageMapping("/deleteChannel")
+    public void deleteChannel(@Payload Body body, Authentication authentication) {
+        // Broadcast channel deletion to all subscribers
+        channelRepo.deleteById(body.getChannelName());
+        simpMessagingTemplate.convertAndSend("/topic/delete", body);
     }
 }

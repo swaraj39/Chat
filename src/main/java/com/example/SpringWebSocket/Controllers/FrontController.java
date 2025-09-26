@@ -53,8 +53,10 @@ public class FrontController {
                 }
                 userRepo.save(u); // Save after loop
             }
+            
             //System.out.println(u.getChannel());
             model.addAttribute("host",authentication.getName());
+            model.addAttribute("list",channelRepo.findAllByHost(authentication.getName()));
             return "AfterLogin";
         }
         return "LoginAndSignup";
@@ -125,7 +127,7 @@ public class FrontController {
     @PostMapping("/exit")
     public String exit(Authentication authentication,
                        @RequestParam("channelname") String name) {
-
+        System.out.println(name);
         Users user = userRepo.findById(authentication.getName()).orElseThrow();
         Channel channel = channelRepo.findById(name).orElseThrow();
 

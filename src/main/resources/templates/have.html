@@ -43,7 +43,7 @@
 
         .container {
             width: 100%;
-            max-width: 900px;
+            max-width: 600px;
             display: flex;
             flex-direction: column;
             gap: 30px;
@@ -125,15 +125,6 @@
             background-color: #ddd;
         }
 
-        .btn-danger {
-            background-color: #e74c3c;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: #c0392b;
-        }
-
         .notification {
             position: fixed;
             top: 20px;
@@ -160,77 +151,13 @@
             background-color: #e74c3c;
         }
 
-        /* Channels Section */
-        .channels-section {
-            margin-top: 30px;
-            padding: 20px;
-            background-color: #111;
-            border-radius: 8px;
-        }
-
-        .channels-section h2 {
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #333;
-        }
-
-        .channels-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .channels-table th {
-            text-align: left;
-            padding: 12px 15px;
-            border-bottom: 1px solid #333;
-            font-weight: 600;
-        }
-
-        .channels-table td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #222;
-        }
-
-        .channels-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .channels-table tr:hover {
-            background-color: #1a1a1a;
-        }
-
-        .no-channels {
-            text-align: center;
-            padding: 20px;
-            color: #888;
-            font-style: italic;
-        }
-
-        .channel-count {
-            color: #2ecc71;
-            font-weight: 600;
-        }
-
         @media (max-width: 600px) {
             .tab-content {
                 padding: 20px;
             }
 
-            .channels-section {
-                padding: 15px;
-            }
-
             header h1 {
                 font-size: 2rem;
-            }
-
-            .channels-table {
-                font-size: 14px;
-            }
-
-            .channels-table th,
-            .channels-table td {
-                padding: 8px 10px;
             }
         }
     </style>
@@ -239,7 +166,7 @@
 <body>
     <header>
         <h1>CHANNEL HUB</h1>
-        <p>Welcome, User!</p>
+        <p th:text="${host}"></p>
     </header>
 
     <main>
@@ -252,16 +179,14 @@
             <!-- Create Tab Content -->
             <div id="create" class="tab-content active">
                 <h2 style="margin-bottom: 20px;">Create a New Channel</h2>
-                <form id="create-form">
+                <form action="/create" method="POST">
                     <div class="form-group">
                         <label for="create-channelname">Channel Name</label>
-                        <input type="text" id="create-channelname" name="channelname"
-                            placeholder="Create a channel name" required />
+                        <input type="text" id="create-channelname" name="channelname" placeholder="Create a channel name" required />
                     </div>
                     <div class="form-group">
                         <label for="create-password">Password</label>
-                        <input type="password" id="create-password" name="password" placeholder="Create a password"
-                            required />
+                        <input type="password" id="create-password" name="password" placeholder="Create a password" required />
                     </div>
                     <button type="submit" class="btn">Create Channel</button>
                 </form>
@@ -270,50 +195,17 @@
             <!-- Join Tab Content -->
             <div id="join" class="tab-content">
                 <h2 style="margin-bottom: 20px;">Join an Existing Channel</h2>
-                <form id="join-form">
+                <form action="/join" method="POST">
                     <div class="form-group">
                         <label for="join-channelname">Channel Name</label>
-                        <input type="text" id="join-channelname" name="channelname" placeholder="Search name"
-                            required />
+                        <input type="text" id="join-channelname" name="channelname" placeholder="Search name " required />
                     </div>
                     <div class="form-group">
                         <label for="join-password">Password</label>
-                        <input type="password" id="join-password" name="password" placeholder="Enter password"
-                            required />
+                        <input type="password" id="join-password" name="password" placeholder="Enter password" required />
                     </div>
                     <button type="submit" class="btn">Join Channel</button>
                 </form>
-            </div>
-
-            <!-- Channels Section -->
-            <div class="channels-section">
-                <h2>My Channels </h2>
-                <table class="channels-table">
-                    <thead>
-                        <tr>
-                            <th>Channel Name</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-800">
-                        <tr th:each="show1, status: ${list}" class="table-row">
-                            <td class="px-5 py-4 whitespace-nowrap">
-                                <div class="flex items-center">
-                                    <div class="bg-red-900/20 p-2 rounded-lg mr-3">
-                                        <i class="fas fa-question-circle text-red-400"></i>
-                                    </div>
-                                    <span class="text-white font-medium" th:text="${show1.channelname}">General
-                                        Knowledge</span>
-                                </div>
-                            </td>
-                            <td class="px-5 py-4 whitespace-nowrap">
-                                <button class="btn btn-danger" th:onclick="'deleteChannel(' + ${status.index} + ')'">
-                                    Delete
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
             </div>
         </div>
     </main>
@@ -321,42 +213,6 @@
     <div id="notification" class="notification"></div>
 
     <script>
-        function connect() {
-            showConnectionStatus('Connecting...');
-
-            const socket = new SockJS('/ws');
-            stompClient = Stomp.over(socket);
-
-            stompClient.connect({}, function (frame) {
-                console.log('Connected: ' + frame);
-                document.getElementById('sendBtn').disabled = false;
-                reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-
-                showConnectionStatus('Connected');
-
-                stompClient.subscribe('/topic/delete/', function (message) {
-                    const data = JSON.parse(message.body);
-                    handleChannelDeleted(data.channelName);
-                });
-            }, function (error) {
-                console.error('Connection error: ', error);
-                showConnectionStatus('Disconnected. Attempting to reconnect...');
-                document.getElementById('sendBtn').disabled = true;
-                attemptReconnect();
-            });
-        }
-        function deleteChannel(index) {
-            if (stompClient && stompClient.connected) {
-                const channelName = userChannels[index].name;
-                stompClient.send("/app/deleteChannel", {}, JSON.stringify({ 'channelName': channelName }));
-                userChannels.splice(index, 1);
-                localStorage.setItem('userChannels', JSON.stringify(userChannels));
-                updateChannelsDisplay();
-                showNotification(`Channel "${channelName}" has been deleted`, 'success');
-            } else {
-                showNotification('Unable to delete channel. Not connected to server.', 'error');
-            }
-        }
         // Tab switching logic
         const tabs = document.querySelectorAll('.tab');
         const contents = document.querySelectorAll('.tab-content');
@@ -372,9 +228,9 @@
                 document.getElementById(tab.dataset.tab).classList.add('active');
             });
         });
-
-
     </script>
 </body>
 
 </html>
+
+at last add a table or any thing that indicates the number of channel created by the user along with the delete button
