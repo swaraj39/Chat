@@ -117,7 +117,7 @@ public class FrontController {
             return "already";
         }
 
-        model.addAttribute("channelName", channelname);
+        model.addAttribute("name", channelname);
         model.addAttribute("userName", authentication.getName());
         return "home";
     }
@@ -126,7 +126,7 @@ public class FrontController {
 
     @PostMapping("/exit")
     public String exit(Authentication authentication,
-                       @RequestParam("channelname") String name) {
+                       @RequestParam("n") String name) {
         System.out.println(name);
         Users user = userRepo.findById(authentication.getName()).orElseThrow();
         Channel channel = channelRepo.findById(name).orElseThrow();

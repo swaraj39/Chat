@@ -239,7 +239,7 @@
 <body>
     <header>
         <h1>CHANNEL HUB</h1>
-        <p>Welcome, User!</p>
+        <p>Welcome, <span th:text="${host}"></span>!</p>
     </header>
 
     <main>
@@ -252,7 +252,7 @@
             <!-- Create Tab Content -->
             <div id="create" class="tab-content active">
                 <h2 style="margin-bottom: 20px;">Create a New Channel</h2>
-                <form id="create-form">
+                <form id="create-form" action="/create" method="post">
                     <div class="form-group">
                         <label for="create-channelname">Channel Name</label>
                         <input type="text" id="create-channelname" name="channelname"
@@ -270,7 +270,7 @@
             <!-- Join Tab Content -->
             <div id="join" class="tab-content">
                 <h2 style="margin-bottom: 20px;">Join an Existing Channel</h2>
-                <form id="join-form">
+                <form id="join-form" action="/join" method="post">
                     <div class="form-group">
                         <label for="join-channelname">Channel Name</label>
                         <input type="text" id="join-channelname" name="channelname" placeholder="Search name"
