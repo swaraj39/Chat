@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat - Channel Name</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0a0a0a',
+                            800: '#1a1a1a',
+                            700: '#2a2a2a',
+                            600: '#3a3a3a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for Webkit browsers */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 10px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4a4a4a;
+            border-radius: 10px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #5a5a5a;
+        }
+
+        /* Animation for new messages */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message-fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Pulse animation for connection status */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .pulse-connected {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-dark-900 text-white flex flex-col h-screen">
+<!-- Header -->
+<header class="bg-dark-900 p-4 flex flex-col md:flex-row justify-between items-center border-b border-gray-800 sticky top-0 z-10 shadow-lg">
+    <div class="flex items-center mb-2 md:mb-0 w-full md:w-auto justify-between">
+        <div class="flex items-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            <h1 class="text-xl font-bold">Channel: <span id="channelNameHeader">channel</span></h1>
+        </div>
+        <div class="md:hidden">
+            <button id="mobileMenuBtn" class="text-gray-400 hover:text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="mobileMenu" class="hidden md:flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-4 w-full md:w-auto mt-2 md:mt-0">
+        <div class="flex items-center bg-dark-800 px-3 py-1 rounded-full">
+            <div class="w-2 h-2 rounded-full bg-green-500 mr-2 pulse-connected"></div>
+            <span class="text-sm">User: <span id="userNameHeader" class="font-medium">user</span></span>
+        </div>
+        <form action="/exit" method="POST" class="w-full md:w-auto">
+            <input type="hidden" name="channelname" id="channelNameInput" value="channel" />
+            <button type="submit" class="flex items-center justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition duration-200 w-full md:w-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Exit
+            </button>
+        </form>
+    </div>
+</header>
+
+<!-- Chat Container -->
+<main id="chatContainer" class="flex-1 overflow-auto p-4 custom-scrollbar">
+    <div id="messages" class="flex flex-col space-y-4 max-w-4xl mx-auto"></div>
+
+    <!-- Connection status indicator -->
+    <div id="connectionStatus" class="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-dark-800 px-4 py-2 rounded-full text-sm hidden">
+        <span id="statusText">Connecting...</span>
+    </div>
+</main>
+
+<!-- Hidden inputs for data -->
+<input type="hidden" id="userName" value="user" />
+<input type="hidden" id="channelName" value="channel" />
+
+<!-- Footer with message input -->
+<footer class="bg-dark-900 p-4 border-t border-gray-800">
+    <div class="max-w-4xl mx-auto flex flex-col sm:flex-row gap-2">
+        <div class="relative flex-grow">
+            <input
+                    id="content"
+                    type="text"
+                    placeholder="Type your message..."
+                    maxlength="500"
+                    class="w-full rounded-lg border border-gray-700 bg-dark-800 px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <div class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">
+                <span id="charCount">0/500</span>
+            </div>
+        </div>
+        <button
+                id="sendBtn"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+            Send
+        </button>
+    </div>
+</footer>
+
+<script>
+    // Get channel and user info
+    const channelName = document.getElementById('channelName').value || 'defaultChannel';
+    const userName = document.getElementById('userName').value || 'Anonymous';
+
+    // Update headers
+    document.getElementById('channelNameHeader').textContent = channelName;
+    document.getElementById('userNameHeader').textContent = userName;
+    document.getElementById('channelNameInput').value = channelName;
+
+    let stompClient = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+
+    // Connection status element
+    const connectionStatus = document.getElementById('connectionStatus');
+    const statusText = document.getElementById('statusText');
+
+    // Mobile menu toggle
+    document.getElementById('mobileMenuBtn').addEventListener('click', function() {
+        const mobileMenu = document.getElementById('mobileMenu');
+        mobileMenu.classList.toggle('hidden');
+    });
+
+    // Character count for message input
+    document.getElementById('content').addEventListener('input', function() {
+        document.getElementById('charCount').textContent = this.value.length + '/500';
+    });
+
+    function showConnectionStatus(message, isError = false) {
+        statusText.textContent = message;
+        connectionStatus.classList.remove('hidden', 'bg-red-600', 'bg-green-600');
+
+        if (isError) {
+            connectionStatus.classList.add('bg-red-600');
+        } else {
+            connectionStatus.classList.add('bg-green-600');
+        }
+
+        // Auto-hide after 3 seconds if not an error
+        if (!isError) {
+            setTimeout(() => {
+                connectionStatus.classList.add('hidden');
+            }, 3000);
+        }
+    }
+
+    function connect() {
+        showConnectionStatus('Connecting...');
+
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+            document.getElementById('sendBtn').disabled = false;
+            reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+
+            showConnectionStatus('Connected');
+
+            stompClient.subscribe('/topic/messages/' + channelName, function (message) {
+                showMessage(JSON.parse(message.body));
+            });
+        }, function(error) {
+            console.error('Connection error:', error);
+            document.getElementById('sendBtn').disabled = true;
+
+            reconnectAttempts++;
+            if (reconnectAttempts <= maxReconnectAttempts) {
+                showConnectionStatus(`Connection lost. Reconnecting... (${reconnectAttempts}/${maxReconnectAttempts})`, true);
+                setTimeout(connect, 3000); // Try to reconnect after 3 seconds
+            } else {
+                showConnectionStatus('Failed to connect. Please refresh the page.', true);
+            }
+        });
+    }
+
+    function sendMessage() {
+        const contentInput = document.getElementById('content');
+        const content = contentInput.value.trim();
+
+        if (!content) {
+            showConnectionStatus('Please enter a message', true);
+            return;
+        }
+
+        const message = {
+            channelName: channelName,
+            content: content,
+            from: userName,
+            timestamp: new Date().toISOString()
+        };
+
+        if (stompClient && stompClient.connected) {
+            stompClient.send("/app/send", {}, JSON.stringify(message));
+            contentInput.value = '';
+            document.getElementById('charCount').textContent = '0/500';
+            contentInput.focus();
+        } else {
+            showConnectionStatus('Not connected to chat server.', true);
+        }
+    }
+
+    function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    function showMessage(message) {
+        const messagesDiv = document.getElementById('messages');
+        const msgDiv = document.createElement('div');
+        const isOwnMessage = message.from === userName;
+
+        msgDiv.className = `flex ${isOwnMessage ? 'justify-end' : 'justify-start'} message-fade-in`;
+
+        msgDiv.innerHTML = `
+            <div class="flex ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} items-end max-w-xs lg:max-w-md">
+                <div class="flex-shrink-0 mx-2">
+                    <div class="w-8 h-8 rounded-full bg-dark-700 flex items-center justify-center text-sm font-bold">
+                        ${message.from.charAt(0).toUpperCase()}
+                    </div>
+                </div>
+                <div class="${isOwnMessage ? 'bg-blue-600' : 'bg-dark-700'} rounded-2xl px-4 py-2 ${isOwnMessage ? 'rounded-br-none' : 'rounded-bl-none'}">
+                    <div class="text-xs font-semibold ${isOwnMessage ? 'text-blue-100' : 'text-gray-300'}">${message.from}</div>
+                    <div class="text-white my-1 break-words">${message.content}</div>
+                    <div class="text-xs ${isOwnMessage ? 'text-blue-200' : 'text-gray-400'} text-right">${formatTime(message.timestamp)}</div>
+                </div>
+            </div>
+        `;
+
+        messagesDiv.appendChild(msgDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+        // Add welcome message if it's the first message
+        if (messagesDiv.children.length === 1) {
+            const welcomeMsg = document.createElement('div');
+            welcomeMsg.className = 'text-center text-gray-500 text-sm py-4';
+            welcomeMsg.textContent = `Welcome to ${channelName}! Start the conversation.`;
+            messagesDiv.appendChild(welcomeMsg);
+        }
+    }
+
+    // Event listeners
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('content').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    // Initialize the chat
+    connect();
+
+    // Add a welcome message when the page loads
+    window.addEventListener('load', function() {
+        const messagesDiv = document.getElementById('messages');
+        const welcomeMsg = document.createElement('div');
+        welcomeMsg.className = 'text-center text-gray-500 text-sm py-4';
+        welcomeMsg.textContent = `Welcome to ${channelName}! Start the conversation.`;
+        messagesDiv.appendChild(welcomeMsg);
+    });
+</script>
+
+</body>
+</html>

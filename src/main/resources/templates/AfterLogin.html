@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Channel Hub - Create or Join</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: #000;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #333;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            background-color: #111;
+        }
+
+        .tab.active {
+            border-bottom: 2px solid #fff;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 30px;
+            background-color: #111;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            background-color: #222;
+            border: 1px solid #333;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 16px;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #555;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background-color: #fff;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #ddd;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 15px 20px;
+            background-color: #333;
+            color: #fff;
+            border-radius: 4px;
+            transform: translateX(120%);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.success {
+            background-color: #2ecc71;
+            color: #000;
+        }
+
+        .notification.error {
+            background-color: #e74c3c;
+        }
+
+        @media (max-width: 600px) {
+            .tab-content {
+                padding: 20px;
+            }
+
+            header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>CHANNEL HUB</h1>
+        <p th:text="${host}"></p>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="tabs">
+                <div class="tab active" data-tab="create">Create Channel</div>
+                <div class="tab" data-tab="join">Join Channel</div>
+            </div>
+
+            <!-- Create Tab Content -->
+            <div id="create" class="tab-content active">
+                <h2 style="margin-bottom: 20px;">Create a New Channel</h2>
+                <form action="/create" method="POST">
+                    <div class="form-group">
+                        <label for="create-channelname">Channel Name</label>
+                        <input type="text" id="create-channelname" name="channelname" placeholder="Create a channel name" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="create-password">Password</label>
+                        <input type="password" id="create-password" name="password" placeholder="Create a password" required />
+                    </div>
+                    <button type="submit" class="btn">Create Channel</button>
+                </form>
+            </div>
+
+            <!-- Join Tab Content -->
+            <div id="join" class="tab-content">
+                <h2 style="margin-bottom: 20px;">Join an Existing Channel</h2>
+                <form action="/join" method="POST">
+                    <div class="form-group">
+                        <label for="join-channelname">Channel Name</label>
+                        <input type="text" id="join-channelname" name="channelname" placeholder="Search name " required />
+                    </div>
+                    <div class="form-group">
+                        <label for="join-password">Password</label>
+                        <input type="password" id="join-password" name="password" placeholder="Enter password" required />
+                    </div>
+                    <button type="submit" class="btn">Join Channel</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        // Tab switching logic
+        const tabs = document.querySelectorAll('.tab');
+        const contents = document.querySelectorAll('.tab-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Remove active class from all tabs
+                tabs.forEach(t => t.classList.remove('active'));
+                contents.forEach(c => c.classList.remove('active'));
+
+                // Add active class to clicked tab and corresponding content
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab).classList.add('active');
+            });
+        });
+    </script>
+</body>
+
+</html>

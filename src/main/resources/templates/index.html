@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat App</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        .message-enter {
+            animation: messageEnter 0.3s ease-out;
+        }
+
+        @keyframes messageEnter {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .scrollbar-thin {
+            scrollbar-width: thin;
+            scrollbar-color: #4B5563 #1F2937;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: #1F2937;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background-color: #4B5563;
+            border-radius: 3px;
+        }
+
+        .typing-indicator {
+            display: inline-block;
+            position: relative;
+            width: 60px;
+            height: 30px;
+        }
+
+        .typing-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #9CA3AF;
+            position: absolute;
+            bottom: 0;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .typing-dot:nth-child(1) {
+            left: 0;
+            animation-delay: -0.32s;
+        }
+
+        .typing-dot:nth-child(2) {
+            left: 16px;
+            animation-delay: -0.16s;
+        }
+
+        .typing-dot:nth-child(3) {
+            left: 32px;
+        }
+
+        @keyframes typing {
+            0%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* Mobile optimizations */
+        @media (max-width: 640px) {
+            .message {
+                max-width: 85%;
+            }
+
+            .header-content {
+                padding: 12px;
+            }
+
+            .message-input {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+<div class="flex flex-col h-screen max-w-4xl mx-auto">
+    <!-- Header -->
+    <header class="bg-gray-800 p-4 border-b border-gray-700 header-content">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-xl font-semibold">Team Chat</h1>
+                <div class="text-sm text-gray-400">Online: 4 users</div>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="text-sm">
+                    <span class="text-gray-400">You: </span>
+                    <span class="font-medium" id="current-user">Alex Johnson</span>
+                </div>
+                <button class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors">
+                    Leave
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Reply Preview -->
+    <div id="reply-preview" class="bg-gray-800 p-3 border-l-4 border-blue-500 hidden">
+        <div class="flex justify-between items-center mb-1">
+            <span class="text-sm font-medium text-blue-400">Replying to <span id="reply-to-user">User</span></span>
+            <button id="cancel-reply" class="text-gray-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <p id="reply-preview-content" class="text-sm text-gray-300 truncate">Message content...</p>
+    </div>
+
+    <!-- Chat Messages -->
+    <main class="flex-1 overflow-auto p-4 bg-gray-900 scrollbar-thin">
+        <div id="messages" class="flex flex-col space-y-4">
+            <!-- Messages will be inserted here by JavaScript -->
+        </div>
+
+        <!-- Typing Indicator -->
+        <div id="typing-indicator" class="hidden mt-4">
+            <div class="flex items-center space-x-2 text-gray-400">
+                <div class="typing-indicator">
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                    <span class="typing-dot"></span>
+                </div>
+                <span class="text-sm">Sarah is typing...</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Message Input -->
+    <footer class="bg-gray-800 p-4 border-t border-gray-700 message-input">
+        <div class="flex gap-2">
+            <input
+                    id="message-input"
+                    type="text"
+                    placeholder="Type your message..."
+                    maxlength="500"
+                    class="flex-grow rounded border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button
+                    id="send-btn"
+                    class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white transition-colors"
+            >
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
+        <div class="text-xs text-gray-400 mt-2 flex justify-between">
+            <span id="char-count">0/500</span>
+            <span>Press Enter to send</span>
+        </div>
+    </footer>
+</div>
+
+<script>
+    // Sample data for demonstration
+    const users = ['Alex Johnson', 'Sarah Miller', 'Michael Chen', 'Emma Davis'];
+    const currentUser = users[0];
+
+    // Set current user
+    document.getElementById('current-user').textContent = currentUser;
+
+    // Sample messages
+    const sampleMessages = [
+        {
+            id: 1,
+            user: 'Sarah Miller',
+            content: 'Hey team! Has everyone reviewed the new design mockups?',
+            timestamp: new Date(Date.now() - 3600000),
+            replies: []
+        },
+        {
+            id: 2,
+            user: 'Michael Chen',
+            content: 'Yes, I went through them this morning. The new layout looks great!',
+            timestamp: new Date(Date.now() - 3300000),
+            replies: []
+        },
+        {
+            id: 3,
+            user: 'Emma Davis',
+            content: 'I have some feedback on the color scheme. Can we discuss in the meeting tomorrow?',
+            timestamp: new Date(Date.now() - 3000000),
+            replies: [
+                {
+                    id: 31,
+                    user: 'Sarah Miller',
+                    content: 'Absolutely! I\'ve added it to the agenda.',
+                    timestamp: new Date(Date.now() - 2900000)
+                }
+            ]
+        },
+        {
+            id: 4,
+            user: 'Michael Chen',
+            content: 'By the way, don\'t forget about the deadline for the project proposal next Friday.',
+            timestamp: new Date(Date.now() - 1800000),
+            replies: []
+        }
+    ];
+
+    // Store messages
+    let messages = [...sampleMessages];
+    let replyToId = null;
+
+    // Format time for display
+    function formatTime(timestamp) {
+        return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Format date for display
+    function formatDate(timestamp) {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        if (timestamp.toDateString() === today.toDateString()) {
+            return 'Today';
+        } else if (timestamp.toDateString() === yesterday.toDateString()) {
+            return 'Yesterday';
+        } else {
+            return timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' });
+        }
+    }
+
+    // Render messages
+    function renderMessages() {
+        const messagesContainer = document.getElementById('messages');
+        messagesContainer.innerHTML = '';
+
+        let lastDate = null;
+
+        messages.forEach(message => {
+            // Add date separator if needed
+            const messageDate = formatDate(message.timestamp);
+            if (messageDate !== lastDate) {
+                const dateDiv = document.createElement('div');
+                dateDiv.className = 'flex justify-center my-4';
+                dateDiv.innerHTML = `<span class="bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-full">${messageDate}</span>`;
+                messagesContainer.appendChild(dateDiv);
+                lastDate = messageDate;
+            }
+
+            // Create message element
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message-enter message';
+            messageDiv.innerHTML = `
+                <div class="flex space-x-3">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-semibold">
+                            ${message.user.charAt(0)}
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-baseline space-x-2">
+                            <span class="font-semibold">${message.user}</span>
+                            <span class="text-xs text-gray-400">${formatTime(message.timestamp)}</span>
+                        </div>
+                        <div class="mt-1 bg-gray-800 rounded-lg p-3">
+                            <p>${message.content}</p>
+                        </div>
+                        <div class="mt-2 flex space-x-4">
+                            <button class="reply-btn text-xs text-gray-400 hover:text-blue-400 transition-colors" data-id="${message.id}">
+                                <i class="fas fa-reply mr-1"></i>Reply
+                            </button>
+                            <button class="text-xs text-gray-400 hover:text-blue-400 transition-colors">
+                                <i class="far fa-thumbs-up mr-1"></i>Like
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            messagesContainer.appendChild(messageDiv);
+
+            // Add replies if any
+            if (message.replies && message.replies.length > 0) {
+                const repliesContainer = document.createElement('div');
+                repliesContainer.className = 'ml-12 mt-2 space-y-2';
+
+                message.replies.forEach(reply => {
+                    const replyDiv = document.createElement('div');
+                    replyDiv.className = 'message-enter';
+                    replyDiv.innerHTML = `
+                        <div class="flex space-x-3">
+                            <div class="flex-shrink-0">
+                                <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center font-semibold text-sm">
+                                    ${reply.user.charAt(0)}
+                                </div>
+                            </div>
+                            <div class="flex-1">
+                                <div class="flex items-baseline space-x-2">
+                                    <span class="font-medium text-sm">${reply.user}</span>
+                                    <span class="text-xs text-gray-400">${formatTime(reply.timestamp)}</span>
+                                </div>
+                                <div class="mt-1 bg-gray-800 rounded-lg p-2 text-sm">
+                                    <p>${reply.content}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    repliesContainer.appendChild(replyDiv);
+                });
+
+                messagesContainer.appendChild(repliesContainer);
+            }
+
+            // Add event listener to reply button
+            const replyBtn = messageDiv.querySelector('.reply-btn');
+            replyBtn.addEventListener('click', () => {
+                setReplyTo(message.id, message.user, message.content);
+            });
+        });
+
+        // Scroll to bottom
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
+
+    // Set reply to a specific message
+    function setReplyTo(messageId, username, content) {
+        replyToId = messageId;
+        document.getElementById('reply-to-user').textContent = username;
+        document.getElementById('reply-preview-content').textContent = content;
+        document.getElementById('reply-preview').classList.remove('hidden');
+        document.getElementById('message-input').focus();
+    }
+
+    // Cancel the current reply
+    function cancelReply() {
+        replyToId = null;
+        document.getElementById('reply-preview').classList.add('hidden');
+    }
+
+    // Send a new message
+    function sendMessage() {
+        const messageInput = document.getElementById('message-input');
+        const content = messageInput.value.trim();
+
+        if (!content) return;
+
+        // Create new message object
+        const newMessage = {
+            id: messages.length + 1,
+            user: currentUser,
+            content: content,
+            timestamp: new Date(),
+            replies: []
+        };
+
+        // If replying to a message, add as reply
+        if (replyToId) {
+            const originalMessage = messages.find(m => m.id === replyToId);
+            if (originalMessage) {
+                originalMessage.replies.push({
+                    id: originalMessage.replies.length + 1,
+                    user: currentUser,
+                    content: content,
+                    timestamp: new Date()
+                });
+            }
+            cancelReply();
+        } else {
+            // Otherwise, add as new message
+            messages.push(newMessage);
+        }
+
+        // Clear input and update UI
+        messageInput.value = '';
+        updateCharCount();
+        renderMessages();
+
+        // Simulate typing indicator
+        simulateTyping();
+    }
+
+    // Simulate someone typing
+    function simulateTyping() {
+        const typingIndicator = document.getElementById('typing-indicator');
+        typingIndicator.classList.remove('hidden');
+
+        setTimeout(() => {
+            typingIndicator.classList.add('hidden');
+
+            // Add a simulated response after a delay
+            setTimeout(() => {
+                const randomUser = users.filter(u => u !== currentUser)[Math.floor(Math.random() * 3)];
+                const responses = [
+                    "Thanks for the update!",
+                    "I'll look into that.",
+                    "That sounds good to me.",
+                    "Let me check and get back to you.",
+                    "I agree with that approach."
+                ];
+
+                const response = responses[Math.floor(Math.random() * responses.length)];
+
+                const newMessage = {
+                    id: messages.length + 1,
+                    user: randomUser,
+                    content: response,
+                    timestamp: new Date(),
+                    replies: []
+                };
+
+                messages.push(newMessage);
+                renderMessages();
+            }, 1000);
+        }, 2000);
+    }
+
+    // Update character count
+    function updateCharCount() {
+        const content = document.getElementById('message-input').value;
+        document.getElementById('char-count').textContent = `${content.length}/500`;
+    }
+
+    // Initialize the chat
+    function init() {
+        // Render initial messages
+        renderMessages();
+
+        // Add event listeners
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+        document.getElementById('message-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+        document.getElementById('message-input').addEventListener('input', updateCharCount);
+        document.getElementById('cancel-reply').addEventListener('click', cancelReply);
+
+        // Initialize character count
+        updateCharCount();
+    }
+
+    // Start the chat when page loads
+    document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
