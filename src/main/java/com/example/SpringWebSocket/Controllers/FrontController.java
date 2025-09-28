@@ -38,7 +38,7 @@ public class FrontController {
     @RequestMapping("/home")
     public String hello(Authentication authentication, Model model) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            System.out.println("no");
+            //System.out.println("no");
             return "LonginAndSignup";
         }
         System.out.println(authentication.getName());
@@ -47,13 +47,13 @@ public class FrontController {
             //System.out.println(u.getChannel());
             if (u.getChannel() != null) {
                 for (Channel channel : new ArrayList<>(u.getChannel())) {
-                    System.out.println(channel);
+                    //System.out.println(channel);
                     u.leaveChannel(channel);  // safely modifies the original collection
                     System.out.println("delete");
                 }
                 userRepo.save(u); // Save after loop
             }
-            
+
             //System.out.println(u.getChannel());
             model.addAttribute("host",authentication.getName());
             model.addAttribute("list",channelRepo.findAllByHost(authentication.getName()));
@@ -67,9 +67,9 @@ public class FrontController {
     public String newuser(@ModelAttribute Users users) {
         String s = passwordEncoder.encode(users.getPassword());
         Users u = new Users(users.getId(), users.getEmail(), s);
-        System.out.println(u);
+        //System.out.println(u);
         userRepo.save(u);
-        System.out.println("Saved");
+        //System.out.println("Saved");
         return "Added";
     }
 
@@ -113,11 +113,11 @@ public class FrontController {
             // ✅ Save (usually only user is enough)
             userRepo.save(user);
         } else {
-            System.out.println("User already in channel");
+            //System.out.println("User already in channel");
             return "already";
         }
 
-        model.addAttribute("name", channelname);
+        model.addAttribute("channelName", channelname);
         model.addAttribute("userName", authentication.getName());
         return "home";
     }
@@ -126,8 +126,8 @@ public class FrontController {
 
     @PostMapping("/exit")
     public String exit(Authentication authentication,
-                       @RequestParam("n") String name) {
-        System.out.println(name);
+                       @RequestParam("channelname") String name) {
+        //System.out.println(name);
         Users user = userRepo.findById(authentication.getName()).orElseThrow();
         Channel channel = channelRepo.findById(name).orElseThrow();
 
