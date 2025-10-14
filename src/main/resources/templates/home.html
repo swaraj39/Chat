@@ -310,6 +310,10 @@
             display: none;
         }
 
+        .hidden {
+            display: none;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
 
@@ -355,7 +359,12 @@
     </header>
 
     <main id="chatContainer">
-        <div id="messages"></div>
+        <div id="messages">
+
+        </div>
+        <div id="showtext" class="hidden">
+            <p th:text="${userName + ' is typing...'}"></p>
+        </div>
     </main>
     <input type="hidden" id="userName" th:value="${userName}" />
     <input type="hidden" id="channelName" th:value="${channelName}" />
@@ -373,6 +382,12 @@
 
         let stompClient = null;
 
+        document.getElementById('content').addEventListener('input', function () {
+            stompClient.send("/app/typing", {}, JSON.stringify({
+                from: userName,
+                channelName: channelName
+            }));
+        });
         function connect() {
             const socket = new SockJS('/ws');
             stompClient = Stomp.over(socket);
@@ -381,6 +396,12 @@
                 document.getElementById('sendBtn').disabled = false;
 
                 stompClient.subscribe('/topic/messages/' + channelName, function (message) {
+                    // document.addEventListener('input',function(){
+                    //     document.getElementById('showtext').classList.remove('hidden');
+                    // });
+                    if(userName !== JSON.parse(message.body).from){
+                        document.getElementById('showtext').classList.add('hidden');
+                    }
                     showMessage(JSON.parse(message.body));
                 });
                 stompClient.subscribe('/topic/join' + channelName, function (message) {
@@ -389,6 +410,14 @@
                 stompClient.subscribe('/topic/exit' + channelName, function (message) {
                     showMessages(message.body);
                 });
+                stompClient.subscribe('/topic/typing/' + channelName, function (message) {
+                const typingInfo = JSON.parse(message.body);
+                    if (typingInfo.from !== userName) {
+                        document.getElementById('showtext').classList.remove('hidden');
+                        document.querySelector('#showtext p').textContent = `${typingInfo.from} is typing...`;
+                    }
+                });
+
 
             }, function (error) {
                 console.error('Connection error:', error);
@@ -397,6 +426,7 @@
         }
 
         function sendMessage() {
+            
             const contentInput = document.getElementById('content');
             const content = contentInput.value.trim();
 
@@ -425,7 +455,7 @@
             const messagesDiv = document.getElementById('messages');
             const msgDiv = document.createElement('div');
             msgDiv.className = 'message other';
-           msgDiv.innerHTML = `
+            msgDiv.innerHTML = `
   <div class="message-bubble" style="background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.2); font-style: italic; text-align: center;">
     <div class="message-content" style="color: #ff0000;">${message}</div>
   </div>`;

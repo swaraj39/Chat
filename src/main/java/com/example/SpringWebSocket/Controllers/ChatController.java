@@ -3,6 +3,7 @@ package com.example.SpringWebSocket.Controllers;
 import com.example.SpringWebSocket.Model.Body;
 
 import com.example.SpringWebSocket.Model.PrivateMessage;
+import com.example.SpringWebSocket.Model.Typing;
 import com.example.SpringWebSocket.Model.Whom;
 import com.example.SpringWebSocket.Repository.ChannelRepo;
 
@@ -67,8 +68,24 @@ public class ChatController {
 } catch (Exception e) {
     System.err.println("Failed to send private message: " + e.getMessage());
 }
+}
 
+    @MessageMapping("/typing")
+    public void typing(@Payload Typing typing, Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            System.out.println("no auth");
+            return;
+        }
+        String username = authentication.getName();
+        String channelName = typing.getChannelName();
+
+        Map<String, String> payload = new HashMap<>();
+        payload.put("from", username);
+        payload.put("channelName", channelName);
+
+        simpMessagingTemplate.convertAndSend("/topic/typing/" + channelName, payload);
     }
+
     public void joinMessage(String channelName, String username) {
         Map<String, String> payload = new HashMap<>();
         payload.put("user", username);
