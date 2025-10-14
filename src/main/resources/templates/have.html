@@ -1,236 +1,506 @@
 <!DOCTYPE html>
-<html lang="en">
+<html xmlns:th="http://www.w3.org/1999/xhtml">
 
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Channel Hub - Create or Join</title>
+    <meta charset="UTF-8">
+    <title>Private Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
     <style>
-        * {
+        /* Base styles and light theme */
+        body,
+        html {
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
+            height: 100%;
+            background: #ffffff;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        body {
-            background-color: #000;
-            color: #fff;
-            min-height: 100vh;
+        #appContainer {
+            max-width: 900px;
+            margin: 30px auto;
+            background: #cdcdcd;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
             display: flex;
-            flex-direction: column;
+            height: 500px;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
         }
 
         header {
-            padding: 20px;
-            text-align: center;
-            border-bottom: 1px solid #333;
-        }
-
-        header h1 {
-            font-size: 2.5rem;
-            font-weight: 300;
-            letter-spacing: 2px;
-        }
-
-        main {
-            flex: 1;
             display: flex;
-            justify-content: center;
             align-items: center;
-            padding: 20px;
+            padding: 20px 30px;
+            background: #ffffff;
+            color: rgb(0, 0, 0);
+            font-weight: 700;
+            font-size: 1.8rem;
+            letter-spacing: 1px;
+            user-select: none;
+            justify-content: space-between;
         }
 
-        .container {
-            width: 100%;
-            max-width: 600px;
+        /* User avatar in header */
+        #userAvatar {
+            width: 40px;
+            height: 40px;
+            background: #4a90e2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        /* Sidebar with user list */
+        #userList {
+            width: 220px;
+            background: #ffffff;
+            border-right: 1px solid #d1d9ff;
+            padding: 20px 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        #userList h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #000000;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 8px;
+            transition: color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .user {
+            cursor: pointer;
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            background-color: #fffdfe;
+            background: rgb(255, 255, 255);
+            box-shadow: 0 1px 3px rgba(255, 255, 255, 0.2);
+            transition: background-color 0.3s, box-shadow 0.3s, color 0.3s ease;
+            font-weight: 500;
+            color: #333333;
+            position: relative;
+        }
+
+        .user:hover {
+            background: #000000;
+            color: white;
+            box-shadow: 0 4px 12px rgba(255, 255, 255, 0.5);
+        }
+
+        /* Red dot for unread messages */
+        .user.unread {
+            position: relative;
+        }
+
+        .user.unread::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 10px;
+            height: 10px;
+            background: #ff0000;
+            border-radius: 50%;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            z-index: 1;
+        }
+
+        .user.unread:hover::after {
+            border-color: #000000;
+        }
+
+        /* Chat box area */
+        #chatBox {
+            flex-grow: 1;
             display: flex;
             flex-direction: column;
-            gap: 30px;
+            padding: 20px 25px;
+            box-sizing: border-box;
+            transition: background-color 0.3s ease;
+            background: #ffffff;
         }
 
-        .tabs {
-            display: flex;
-            border-bottom: 1px solid #333;
+        #chatWith {
+            margin: 0 0 15px 0;
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: #000000;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 8px;
+            user-select: none;
+            transition: color 0.3s ease, border-color 0.3s ease;
         }
 
-        .tab {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.3s ease;
-        }
-
-        .tab:hover {
-            background-color: #111;
-        }
-
-        .tab.active {
-            border-bottom: 2px solid #fff;
-        }
-
-        .tab-content {
-            display: none;
-            padding: 30px;
-            background-color: #111;
+        #messages {
+            flex-grow: 1;
+            border: 1px solid #d1d9ff;
             border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            background: #ffffff;
+            overflow-y: auto;
+            box-shadow: inset 0 2px 5px rgba(255, 255, 255, 0.1);
+            font-size: 0.95rem;
+            line-height: 1.4;
+            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+            display: flex;
+            flex-direction: column;
         }
 
-        .tab-content.active {
-            display: block;
+        #messages p {
+            margin: 8px 0;
+            padding: 8px 12px;
+            border-radius: 15px;
+            max-width: 70%;
+            word-wrap: break-word;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
-        .form-group {
-            margin-bottom: 20px;
+        /* Different styles for messages from me and others */
+        #messages p:nth-child(odd) {
+            background: #d0e6ff;
+            align-self: flex-start;
+            color: #1a3d7c;
         }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 500;
+        #messages p:nth-child(even) {
+            background: #4a90e2;
+            color: white;
+            align-self: flex-end;
         }
 
-        .form-group input {
-            width: 100%;
-            padding: 12px;
-            background-color: #222;
-            border: 1px solid #333;
-            border-radius: 4px;
-            color: #fff;
-            font-size: 16px;
+        #inputBox {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
         }
 
-        .form-group input:focus {
+        #messageInput {
+            flex-grow: 1;
+            padding: 12px 15px;
+            font-size: 1rem;
+            border: 1px solid #4a90e2;
+            border-radius: 25px;
             outline: none;
-            border-color: #555;
+            transition: box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+            background: white;
+            color: #333;
         }
 
-        .btn {
-            display: inline-block;
-            padding: 12px 24px;
-            background-color: #fff;
-            color: #000;
+        #messageInput:focus {
+            box-shadow: 0 0 8px #4a90e2;
+            border-color: #4a90e2;
+        }
+
+        button {
+            background: #000000;
             border: none;
-            border-radius: 4px;
+            color: white;
+            font-weight: 600;
+            padding: 12px 25px;
+            border-radius: 25px;
             cursor: pointer;
-            font-size: 16px;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
         }
 
-        .btn:hover {
-            background-color: #ddd;
+        button:hover {
+            background: #000000;
+            box-shadow: 0 6px 14px rgba(0, 0, 0, 0.6);
         }
 
-        .notification {
+        /* Scrollbar styling for user list and messages */
+        #userList::-webkit-scrollbar,
+        #messages::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #userList::-webkit-scrollbar-thumb,
+        #messages::-webkit-scrollbar-thumb {
+            background-color: #000000;
+            border-radius: 4px;
+        }
+
+        #userList::-webkit-scrollbar-track,
+        #messages::-webkit-scrollbar-track {
+            background: #f0f4ff;
+        }
+
+        /* Dark theme styles (kept for compatibility if localStorage has it set, but toggle removed) */
+        body.dark-theme {
+            background: linear-gradient(135deg, #000000, #000000, #000000);
+            color: #e0e0e0;
+        }
+
+        body.dark-theme #appContainer {
+            background: rgba(0, 0, 0, 0.85);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(0, 0, 0, 0.15);
+        }
+
+        body.dark-theme header {
+            background: transparent;
+            color: #fffafc;
+            text-shadow: 0 0 8px #000000;
+        }
+
+        body.dark-theme #userAvatar {
+            background: #4a90e2;
+        }
+
+        body.dark-theme #userList {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        body.dark-theme #userList h3 {
+            color: #ffffff;
+            border-color: #ffffff;
+        }
+
+        body.dark-theme .user {
+            background: rgba(255, 255, 255, 0.1);
+            color: #ffffff;
+            box-shadow: none;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        body.dark-theme .user:hover {
+            background: #000000;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7);
+        }
+
+        body.dark-theme .user.unread::after {
+            border-color: rgba(0, 0, 0, 0.8);
+        }
+
+        body.dark-theme #chatBox {
+            background: rgba(0, 0, 0, 0.85);
+        }
+
+        body.dark-theme #chatWith {
+            color: #ffffff;
+            border-color: #ffffff;
+            text-shadow: 0 0 6px #000000;
+        }
+
+        body.dark-theme #messages {
+            background: rgba(0, 0, 0, 0.7);
+            border-color: rgba(0, 0, 0, 0.5);
+            box-shadow: inset 0 2px 10px rgba(255, 252, 254, 0.3);
+        }
+
+        body.dark-theme #messages p:nth-child(odd) {
+            background: rgba(0, 0, 0, 0.3);
+            color: #ffffff;
+            color: #027023;
+        }
+
+        body.dark-theme #messages p:nth-child(even) {
+            background: #000000;
+            color: white;
+        }
+
+        body.dark-theme #messageInput {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #fffdfe;
+            color: #ffffff;
+        }
+
+        body.dark-theme #messageInput::placeholder {
+            color: #ffffff;
+            opacity: 0.7;
+        }
+
+        body.dark-theme #messageInput:focus {
+            box-shadow: 0 0 12px #000000;
+            border-color: #000000;
+        }
+
+        body.dark-theme button {
+            background: #000000;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+        }
+
+        body.dark-theme button:hover {
+            background: #000000;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.9);
+        }
+
+        body.dark-theme #userList::-webkit-scrollbar-thumb,
+        body.dark-theme #messages::-webkit-scrollbar-thumb {
+            background-color: #000000;
+        }
+
+        body.dark-theme #userList::-webkit-scrollbar-track,
+        body.dark-theme #messages::-webkit-scrollbar-track {
+            background: rgba(40, 20, 60, 0.8);
+        }
+
+        #toast {
+            display: none;
             position: fixed;
             top: 20px;
             right: 20px;
-            padding: 15px 20px;
-            background-color: #333;
-            color: #fff;
+            background-color: #ff0000;
+            color: white;
+            padding: 10px 16px;
             border-radius: 4px;
-            transform: translateX(120%);
-            transition: transform 0.3s ease;
+            animation: fadeInOut 2.5s forwards;
+            font-family: sans-serif;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
             z-index: 1000;
+            max-width: 300px;
+            word-wrap: break-word;
         }
 
-        .notification.show {
-            transform: translateX(0);
-        }
-
-        .notification.success {
-            background-color: #2ecc71;
-            color: #000;
-        }
-
-        .notification.error {
-            background-color: #e74c3c;
-        }
-
-        @media (max-width: 600px) {
-            .tab-content {
-                padding: 20px;
-            }
-
-            header h1 {
-                font-size: 2rem;
-            }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateX(100%); }
+            10% { opacity: 1; transform: translateX(0); }
+            90% { opacity: 1; transform: translateX(0); }
+            100% { opacity: 0; transform: translateX(100%); }
         }
     </style>
 </head>
 
 <body>
+
     <header>
-        <h1>CHANNEL HUB</h1>
-        <p th:text="${host}"></p>
+        <div style="display:flex; align-items:center;">
+            <div id="userAvatar"></div>
+            <h4 th:text="${name}"></h4>
+        </div>
+        <div id="toast"></div>
     </header>
 
-    <main>
-        <div class="container">
-            <div class="tabs">
-                <div class="tab active" data-tab="create">Create Channel</div>
-                <div class="tab" data-tab="join">Join Channel</div>
-            </div>
-
-            <!-- Create Tab Content -->
-            <div id="create" class="tab-content active">
-                <h2 style="margin-bottom: 20px;">Create a New Channel</h2>
-                <form action="/create" method="POST">
-                    <div class="form-group">
-                        <label for="create-channelname">Channel Name</label>
-                        <input type="text" id="create-channelname" name="channelname" placeholder="Create a channel name" required />
-                    </div>
-                    <div class="form-group">
-                        <label for="create-password">Password</label>
-                        <input type="password" id="create-password" name="password" placeholder="Create a password" required />
-                    </div>
-                    <button type="submit" class="btn">Create Channel</button>
-                </form>
-            </div>
-
-            <!-- Join Tab Content -->
-            <div id="join" class="tab-content">
-                <h2 style="margin-bottom: 20px;">Join an Existing Channel</h2>
-                <form action="/join" method="POST">
-                    <div class="form-group">
-                        <label for="join-channelname">Channel Name</label>
-                        <input type="text" id="join-channelname" name="channelname" placeholder="Search name " required />
-                    </div>
-                    <div class="form-group">
-                        <label for="join-password">Password</label>
-                        <input type="password" id="join-password" name="password" placeholder="Enter password" required />
-                    </div>
-                    <button type="submit" class="btn">Join Channel</button>
-                </form>
+    <div id="appContainer">
+        <div id="userList">
+            <h3>Users</h3>
+            <div th:each="user : ${users}">
+                <!-- show the name, pass the ID -->
+                <div class="user" th:text="${user.id}" th:attr="data-id=${user.id}"></div>
             </div>
         </div>
-    </main>
 
-    <div id="notification" class="notification"></div>
+        <div id="chatBox">
+            <h3 id="chatWith">Select a user to chat</h3>
+            <div id="messages"></div>
+            <div id="inputBox">
+                <input type="text" id="messageInput" placeholder="Type your message" autocomplete="off" />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-        // Tab switching logic
-        const tabs = document.querySelectorAll('.tab');
-        const contents = document.querySelectorAll('.tab-content');
+let stompClient = null;
+let currentRecipient = null;
+let reconnectDelay = 5000; // 5 seconds
+let isReconnecting = false;
 
-        tabs.forEach(tab => {
-            tab.addEventListener('click', () => {
-                // Remove active class from all tabs
-                tabs.forEach(t => t.classList.remove('active'));
-                contents.forEach(c => c.classList.remove('active'));
+function connect() {
+    const socket = new SockJS('/ws');
+    
+    stompClient = Stomp.over(socket);
+    stompClient.debug = null; // disable verbose logging
 
-                // Add active class to clicked tab and corresponding content
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
-            });
+    // Heartbeats (keep connection alive)
+    stompClient.heartbeat.outgoing = 10000;
+    stompClient.heartbeat.incoming = 10000;
+
+    stompClient.connect({}, function (frame) {
+        console.log('✅ Connected: ' + frame);
+        isReconnecting = false;
+
+        // Subscribe again after reconnect
+        stompClient.subscribe('/user/queue/messages', function (messageOutput) {
+            const msg = JSON.parse(messageOutput.body);
+            console.log('📩 Received private message: ', msg);
+            const userDiv = document.querySelector(`[data-id="${msg.sender}"]`);
+
+            if (!currentRecipient || msg.sender !== currentRecipient) {
+                const toast = document.getElementById('toast');
+                const truncatedContent = msg.content.length > 50 ? msg.content.substring(0, 50) + '...' : msg.content;
+                toast.innerHTML = `New message from ${msg.sender}: ${truncatedContent}`;
+                toast.style.display = 'block';
+                setTimeout(() => toast.style.display = 'none', 2500);
+
+                if (userDiv) userDiv.classList.add('unread');
+            } else {
+                if (userDiv) userDiv.classList.remove('unread');
+                showMessage(msg.sender + ': ' + msg.content);
+            }
         });
-    </script>
+    }, function (error) {
+        console.warn('⚠️ STOMP error: Lost connection.', error);
+        if (!isReconnecting) {
+            isReconnecting = true;
+            console.log('⏳ Attempting to reconnect in 5 seconds...');
+            setTimeout(connect, reconnectDelay);
+        }
+    });
+}
+
+window.addEventListener('load', function () {
+    const nameElement = document.querySelector('h4');
+    if (nameElement && nameElement.textContent) {
+        const firstChar = nameElement.textContent.charAt(0).toUpperCase();
+        document.getElementById('userAvatar').textContent = firstChar;
+    }
+    connect();
+});
+
+document.getElementById('userList').addEventListener('click', function (e) {
+    if (e.target.classList.contains('user')) {
+        const username = e.target.dataset.id;
+        currentRecipient = username;
+        document.getElementById('chatWith').innerText = 'Chat with ' + e.target.innerText;
+        document.getElementById('messages').innerHTML = '';
+        e.target.classList.remove('unread');
+    }
+});
+
+function sendMessage() {
+    const content = document.getElementById('messageInput').value.trim();
+    if (!currentRecipient) {
+        alert('Select a user first!');
+        return;
+    }
+    if (content === '') return;
+
+    stompClient.send("/app/chat.private", {}, JSON.stringify({
+        to: currentRecipient,
+        content: content
+    }));
+
+    showMessage('Me: ' + content);
+    document.getElementById('messageInput').value = '';
+}
+
+function showMessage(text) {
+    const messagesDiv = document.getElementById('messages');
+    const p = document.createElement('p');
+    p.textContent = text;
+    messagesDiv.appendChild(p);
+    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+</script>
+
 </body>
 
 </html>
-
-at last add a table or any thing that indicates the number of channel created by the user along with the delete button

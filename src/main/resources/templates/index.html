@@ -1,464 +1,434 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat App</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat - [[${channelName}]]</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        * {
+            box-sizing: border-box;
+        }
 
         body {
-            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            position: relative;
         }
 
-        .message-enter {
-            animation: messageEnter 0.3s ease-out;
+        /* Subtle background animation */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%);
+            animation: float 6s ease-in-out infinite;
+            z-index: -1;
         }
 
-        @keyframes messageEnter {
-            from {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(1deg); }
         }
 
-        .scrollbar-thin {
+        header {
+            background: rgba(17, 17, 23, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin: 0;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h1 span {
+            color: #667eea;
+            font-weight: 700;
+        }
+
+        .user-info {
+            font-size: 14px;
+            color: #a0a0a0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .user-info span {
+            color: #fff;
+        }
+
+        form[action="/exit"] {
+            margin: 0;
+        }
+
+        form[action="/exit"] button {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(255, 107, 107, 0.3);
+        }
+
+        form[action="/exit"] button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
+        }
+
+        main {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: rgba(0, 0, 0, 0.4);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
             scrollbar-width: thin;
-            scrollbar-color: #4B5563 #1F2937;
+            scrollbar-color: rgba(102, 126, 234, 0.5) transparent;
         }
 
-        .scrollbar-thin::-webkit-scrollbar {
+        main::-webkit-scrollbar {
             width: 6px;
         }
 
-        .scrollbar-thin::-webkit-scrollbar-track {
-            background: #1F2937;
+        main::-webkit-scrollbar-track {
+            background: transparent;
         }
 
-        .scrollbar-thin::-webkit-scrollbar-thumb {
-            background-color: #4B5563;
+        main::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
             border-radius: 3px;
         }
 
-        .typing-indicator {
-            display: inline-block;
+        main::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.7);
+        }
+
+        #messages {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-width: 100%;
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            max-width: 70%;
+            animation: fadeInMessage 0.4s ease-out;
+        }
+
+        @keyframes fadeInMessage {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.self {
+            align-self: flex-end;
+        }
+
+        .message.other {
+            align-self: flex-start;
+        }
+
+        .message-bubble {
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: fit-content;
+            word-break: break-word;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .message.self .message-bubble {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            border-color: rgba(102, 126, 234, 0.3);
+            color: #fff;
+        }
+
+        .message.other .message-bubble {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .message-bubble:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .message-header {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #a0a0a0;
+        }
+
+        .message.self .message-header {
+            color: rgba(102, 126, 234, 0.8);
+        }
+
+        .message-content {
+            font-size: 14px;
+            line-height: 1.4;
+            color: #fff;
+        }
+
+        footer {
+            background: rgba(17, 17, 23, 0.8);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 16px 24px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        #content {
+            flex-grow: 1;
+            padding: 12px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 14px;
+            border-radius: 25px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(5px);
+            outline: none;
+        }
+
+        #content::placeholder {
+            color: #888;
+            font-weight: 300;
+        }
+
+        #content:focus {
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        #sendBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
             position: relative;
-            width: 60px;
-            height: 30px;
+            overflow: hidden;
+            min-width: 80px;
         }
 
-        .typing-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background-color: #9CA3AF;
+        #sendBtn::before {
+            content: '';
             position: absolute;
-            bottom: 0;
-            animation: typing 1.4s infinite ease-in-out;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
         }
 
-        .typing-dot:nth-child(1) {
-            left: 0;
-            animation-delay: -0.32s;
+        #sendBtn:hover::before {
+            left: 100%;
         }
 
-        .typing-dot:nth-child(2) {
-            left: 16px;
-            animation-delay: -0.16s;
+        #sendBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
-        .typing-dot:nth-child(3) {
-            left: 32px;
+        #sendBtn:active {
+            transform: translateY(0);
         }
 
-        @keyframes typing {
-            0%, 80%, 100% {
-                transform: translateY(0);
+        #sendBtn:disabled {
+            background: linear-gradient(135deg, #666 0%, #555 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Hidden inputs */
+        input[type="hidden"] {
+            display: none;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            header, footer {
+                padding: 12px 16px;
             }
-            40% {
-                transform: translateY(-10px);
-            }
-        }
 
-        /* Mobile optimizations */
-        @media (max-width: 640px) {
+            main {
+                padding: 16px;
+            }
+
             .message {
                 max-width: 85%;
             }
 
-            .header-content {
-                padding: 12px;
+            h1 {
+                font-size: 18px;
             }
 
-            .message-input {
-                padding: 10px;
+            #content {
+                padding: 10px 14px;
+                font-size: 13px;
+            }
+
+            #sendBtn {
+                padding: 10px 16px;
+                font-size: 13px;
             }
         }
     </style>
 </head>
-<body class="bg-gray-900 text-white">
-<div class="flex flex-col h-screen max-w-4xl mx-auto">
-    <!-- Header -->
-    <header class="bg-gray-800 p-4 border-b border-gray-700 header-content">
-        <div class="flex justify-between items-center">
-            <div>
-                <h1 class="text-xl font-semibold">Team Chat</h1>
-                <div class="text-sm text-gray-400">Online: 4 users</div>
-            </div>
-            <div class="flex items-center space-x-4">
-                <div class="text-sm">
-                    <span class="text-gray-400">You: </span>
-                    <span class="font-medium" id="current-user">Alex Johnson</span>
-                </div>
-                <button class="bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-sm transition-colors">
-                    Leave
-                </button>
-            </div>
-        </div>
-    </header>
+<body>
 
-    <!-- Reply Preview -->
-    <div id="reply-preview" class="bg-gray-800 p-3 border-l-4 border-blue-500 hidden">
-        <div class="flex justify-between items-center mb-1">
-            <span class="text-sm font-medium text-blue-400">Replying to <span id="reply-to-user">User</span></span>
-            <button id="cancel-reply" class="text-gray-400 hover:text-white">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-        <p id="reply-preview-content" class="text-sm text-gray-300 truncate">Message content...</p>
-    </div>
+<header>
+    <h1>Channel: <span th:text="${channelName}">channel</span></h1>
+    <div class="user-info">:User  <span th:text="${userName}">user</span></div>
+    <form action="/exit" method="POST">
+        <input type="hidden" name="channelname" th:value="${channelName}" />
+        <button type="submit">Exit</button>
+    </form>
+</header>
 
-    <!-- Chat Messages -->
-    <main class="flex-1 overflow-auto p-4 bg-gray-900 scrollbar-thin">
-        <div id="messages" class="flex flex-col space-y-4">
-            <!-- Messages will be inserted here by JavaScript -->
-        </div>
+<main id="chatContainer">
+    <div id="messages"></div>
+</main>
+<input type="hidden" id="userName" th:value="${userName}" />
+<input type="hidden" id="channelName" th:value="${channelName}" />
 
-        <!-- Typing Indicator -->
-        <div id="typing-indicator" class="hidden mt-4">
-            <div class="flex items-center space-x-2 text-gray-400">
-                <div class="typing-indicator">
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                    <span class="typing-dot"></span>
-                </div>
-                <span class="text-sm">Sarah is typing...</span>
-            </div>
-        </div>
-    </main>
+<footer>
+    <input
+            id="content"
+            type="text"
+            placeholder="Type your message..."
+            maxlength="500"
+    />
+    <button
+            id="sendBtn"
 
-    <!-- Message Input -->
-    <footer class="bg-gray-800 p-4 border-t border-gray-700 message-input">
-        <div class="flex gap-2">
-            <input
-                    id="message-input"
-                    type="text"
-                    placeholder="Type your message..."
-                    maxlength="500"
-                    class="flex-grow rounded border border-gray-600 bg-gray-700 px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <button
-                    id="send-btn"
-                    class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white transition-colors"
-            >
-                <i class="fas fa-paper-plane"></i>
-            </button>
-        </div>
-        <div class="text-xs text-gray-400 mt-2 flex justify-between">
-            <span id="char-count">0/500</span>
-            <span>Press Enter to send</span>
-        </div>
-    </footer>
-</div>
+    >
+        Send
+    </button>
+</footer>
 
 <script>
-    // Sample data for demonstration
-    const users = ['Alex Johnson', 'Sarah Miller', 'Michael Chen', 'Emma Davis'];
-    const currentUser = users[0];
+    const channelName = document.getElementById('channelName').value || 'defaultChannel';
+    const userName = document.getElementById('userName').value || 'Anonymous';
 
-    // Set current user
-    document.getElementById('current-user').textContent = currentUser;
+    let stompClient = null;
 
-    // Sample messages
-    const sampleMessages = [
-        {
-            id: 1,
-            user: 'Sarah Miller',
-            content: 'Hey team! Has everyone reviewed the new design mockups?',
-            timestamp: new Date(Date.now() - 3600000),
-            replies: []
-        },
-        {
-            id: 2,
-            user: 'Michael Chen',
-            content: 'Yes, I went through them this morning. The new layout looks great!',
-            timestamp: new Date(Date.now() - 3300000),
-            replies: []
-        },
-        {
-            id: 3,
-            user: 'Emma Davis',
-            content: 'I have some feedback on the color scheme. Can we discuss in the meeting tomorrow?',
-            timestamp: new Date(Date.now() - 3000000),
-            replies: [
-                {
-                    id: 31,
-                    user: 'Sarah Miller',
-                    content: 'Absolutely! I\'ve added it to the agenda.',
-                    timestamp: new Date(Date.now() - 2900000)
-                }
-            ]
-        },
-        {
-            id: 4,
-            user: 'Michael Chen',
-            content: 'By the way, don\'t forget about the deadline for the project proposal next Friday.',
-            timestamp: new Date(Date.now() - 1800000),
-            replies: []
-        }
-    ];
+    function connect() {
+        const socket = new SockJS('/ws');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, function (frame) {
+            console.log('Connected: ' + frame);
+            document.getElementById('sendBtn').disabled = false;
 
-    // Store messages
-    let messages = [...sampleMessages];
-    let replyToId = null;
-
-    // Format time for display
-    function formatTime(timestamp) {
-        return timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // Format date for display
-    function formatDate(timestamp) {
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        if (timestamp.toDateString() === today.toDateString()) {
-            return 'Today';
-        } else if (timestamp.toDateString() === yesterday.toDateString()) {
-            return 'Yesterday';
-        } else {
-            return timestamp.toLocaleDateString([], { month: 'short', day: 'numeric' });
-        }
-    }
-
-    // Render messages
-    function renderMessages() {
-        const messagesContainer = document.getElementById('messages');
-        messagesContainer.innerHTML = '';
-
-        let lastDate = null;
-
-        messages.forEach(message => {
-            // Add date separator if needed
-            const messageDate = formatDate(message.timestamp);
-            if (messageDate !== lastDate) {
-                const dateDiv = document.createElement('div');
-                dateDiv.className = 'flex justify-center my-4';
-                dateDiv.innerHTML = `<span class="bg-gray-800 text-gray-400 text-xs px-3 py-1 rounded-full">${messageDate}</span>`;
-                messagesContainer.appendChild(dateDiv);
-                lastDate = messageDate;
-            }
-
-            // Create message element
-            const messageDiv = document.createElement('div');
-            messageDiv.className = 'message-enter message';
-            messageDiv.innerHTML = `
-                <div class="flex space-x-3">
-                    <div class="flex-shrink-0">
-                        <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center font-semibold">
-                            ${message.user.charAt(0)}
-                        </div>
-                    </div>
-                    <div class="flex-1">
-                        <div class="flex items-baseline space-x-2">
-                            <span class="font-semibold">${message.user}</span>
-                            <span class="text-xs text-gray-400">${formatTime(message.timestamp)}</span>
-                        </div>
-                        <div class="mt-1 bg-gray-800 rounded-lg p-3">
-                            <p>${message.content}</p>
-                        </div>
-                        <div class="mt-2 flex space-x-4">
-                            <button class="reply-btn text-xs text-gray-400 hover:text-blue-400 transition-colors" data-id="${message.id}">
-                                <i class="fas fa-reply mr-1"></i>Reply
-                            </button>
-                            <button class="text-xs text-gray-400 hover:text-blue-400 transition-colors">
-                                <i class="far fa-thumbs-up mr-1"></i>Like
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            messagesContainer.appendChild(messageDiv);
-
-            // Add replies if any
-            if (message.replies && message.replies.length > 0) {
-                const repliesContainer = document.createElement('div');
-                repliesContainer.className = 'ml-12 mt-2 space-y-2';
-
-                message.replies.forEach(reply => {
-                    const replyDiv = document.createElement('div');
-                    replyDiv.className = 'message-enter';
-                    replyDiv.innerHTML = `
-                        <div class="flex space-x-3">
-                            <div class="flex-shrink-0">
-                                <div class="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center font-semibold text-sm">
-                                    ${reply.user.charAt(0)}
-                                </div>
-                            </div>
-                            <div class="flex-1">
-                                <div class="flex items-baseline space-x-2">
-                                    <span class="font-medium text-sm">${reply.user}</span>
-                                    <span class="text-xs text-gray-400">${formatTime(reply.timestamp)}</span>
-                                </div>
-                                <div class="mt-1 bg-gray-800 rounded-lg p-2 text-sm">
-                                    <p>${reply.content}</p>
-                                </div>
-                            </div>
-                        </div>
-                    `;
-                    repliesContainer.appendChild(replyDiv);
-                });
-
-                messagesContainer.appendChild(repliesContainer);
-            }
-
-            // Add event listener to reply button
-            const replyBtn = messageDiv.querySelector('.reply-btn');
-            replyBtn.addEventListener('click', () => {
-                setReplyTo(message.id, message.user, message.content);
+            stompClient.subscribe('/topic/messages/' + channelName, function (message) {
+                showMessage(JSON.parse(message.body));
             });
+        }, function(error) {
+            console.error('Connection error:', error);
+            document.getElementById('sendBtn').disabled = true;
         });
-
-        // Scroll to bottom
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
-    // Set reply to a specific message
-    function setReplyTo(messageId, username, content) {
-        replyToId = messageId;
-        document.getElementById('reply-to-user').textContent = username;
-        document.getElementById('reply-preview-content').textContent = content;
-        document.getElementById('reply-preview').classList.remove('hidden');
-        document.getElementById('message-input').focus();
-    }
-
-    // Cancel the current reply
-    function cancelReply() {
-        replyToId = null;
-        document.getElementById('reply-preview').classList.add('hidden');
-    }
-
-    // Send a new message
     function sendMessage() {
-        const messageInput = document.getElementById('message-input');
-        const content = messageInput.value.trim();
+        const contentInput = document.getElementById('content');
+        const content = contentInput.value.trim();
 
-        if (!content) return;
+        if (!content) {
+            // Use a subtle alert or console for UX; could add a toast later
+            console.warn('Please enter a message');
+            return;
+        }
 
-        // Create new message object
-        const newMessage = {
-            id: messages.length + 1,
-            user: currentUser,
+        const message = {
+            channelName: channelName,
             content: content,
-            timestamp: new Date(),
-            replies: []
+            from: userName
         };
 
-        // If replying to a message, add as reply
-        if (replyToId) {
-            const originalMessage = messages.find(m => m.id === replyToId);
-            if (originalMessage) {
-                originalMessage.replies.push({
-                    id: originalMessage.replies.length + 1,
-                    user: currentUser,
-                    content: content,
-                    timestamp: new Date()
-                });
-            }
-            cancelReply();
+        if (stompClient && stompClient.connected) {
+            stompClient.send("/app/send", {}, JSON.stringify(message));
+            contentInput.value = '';
+            contentInput.focus();
         } else {
-            // Otherwise, add as new message
-            messages.push(newMessage);
+            console.error("Not connected to chat server.");
         }
-
-        // Clear input and update UI
-        messageInput.value = '';
-        updateCharCount();
-        renderMessages();
-
-        // Simulate typing indicator
-        simulateTyping();
     }
 
-    // Simulate someone typing
-    function simulateTyping() {
-        const typingIndicator = document.getElementById('typing-indicator');
-        typingIndicator.classList.remove('hidden');
+    function showMessage(message) {
+        const messagesDiv = document.getElementById('messages');
+        const msgDiv = document.createElement('div');
+        const isOwnMessage = message.from === userName;
 
-        setTimeout(() => {
-            typingIndicator.classList.add('hidden');
+        msgDiv.className = `message ${isOwnMessage ? 'self' : 'other'}`;
 
-            // Add a simulated response after a delay
-            setTimeout(() => {
-                const randomUser = users.filter(u => u !== currentUser)[Math.floor(Math.random() * 3)];
-                const responses = [
-                    "Thanks for the update!",
-                    "I'll look into that.",
-                    "That sounds good to me.",
-                    "Let me check and get back to you.",
-                    "I agree with that approach."
-                ];
+        msgDiv.innerHTML = `
+            <div class="message-bubble">
+                <div class="message-header">${message.from}</div>
+                <div class="message-content">${message.content}</div>
+            </div>
+        `;
 
-                const response = responses[Math.floor(Math.random() * responses.length)];
-
-                const newMessage = {
-                    id: messages.length + 1,
-                    user: randomUser,
-                    content: response,
-                    timestamp: new Date(),
-                    replies: []
-                };
-
-                messages.push(newMessage);
-                renderMessages();
-            }, 1000);
-        }, 2000);
+        messagesDiv.appendChild(msgDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
     }
 
-    // Update character count
-    function updateCharCount() {
-        const content = document.getElementById('message-input').value;
-        document.getElementById('char-count').textContent = `${content.length}/500`;
-    }
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('content').addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') sendMessage();
+    });
 
-    // Initialize the chat
-    function init() {
-        // Render initial messages
-        renderMessages();
-
-        // Add event listeners
-        document.getElementById('send-btn').addEventListener('click', sendMessage);
-        document.getElementById('message-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-        document.getElementById('message-input').addEventListener('input', updateCharCount);
-        document.getElementById('cancel-reply').addEventListener('click', cancelReply);
-
-        // Initialize character count
-        updateCharCount();
-    }
-
-    // Start the chat when page loads
-    document.addEventListener('DOMContentLoaded', init);
+    connect();
 </script>
+
 </body>
 </html>

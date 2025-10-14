@@ -41,7 +41,12 @@ public class SecurityConfig {
                     auth.requestMatchers("/home").authenticated();
                     auth.anyRequest().authenticated();
                 })
+                .sessionManagement(session -> session
+                        .maximumSessions(1)
+                        .maxSessionsPreventsLogin(false)
+                )
                 .formLogin(form -> form
+                
                         .loginPage("/")
                         .loginProcessingUrl("/login")
                         .defaultSuccessUrl("/home", true)

@@ -22,7 +22,7 @@ public class Users implements UserDetails {
     @Column(name = "password",nullable = false)
     private String password;
 
-    @ManyToMany
+    @ManyToMany(mappedBy = "users", fetch = FetchType.EAGER, cascade = CascadeType.PERSIST)
     private List<Channel> channel;
 
     public void leaveChannel(Channel channel) {

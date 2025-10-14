@@ -19,7 +19,7 @@ public class Channel {
     @Column(name = "password",nullable = false)
     private String password;
 
-    @ManyToMany(mappedBy = "channel")
+    @ManyToMany
     private List<Users> users;
     public Channel() {
     }

@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.w3.org/1999/xhtml">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Private Chat</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        /* Import Inter font for consistency */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        /* Base styles - Nebula Dark Theme (default) */
+        * {
+            box-sizing: border-box;
+        }
+
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            color: #fff;
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: all 0.3s ease;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Subtle background animation */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%);
+            animation: float 6s ease-in-out infinite;
+            z-index: -1;
+        }
+
+        @keyframes float {
+
+            0%,
+            100% {
+                transform: translateY(0px) rotate(0deg);
+            }
+
+            50% {
+                transform: translateY(-20px) rotate(1deg);
+            }
+        }
+
+        #appContainer {
+            max-width: 900px;
+            margin: 30px auto;
+            background: rgba(17, 17, 23, 0.8);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex;
+            height: 500px;
+            transition: all 0.3s ease;
+        }
+
+        header {
+            background: rgba(17, 17, 23, 0.9);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            height: 70px;
+            align-items: center;
+            padding: 20px 30px;
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.8rem;
+            letter-spacing: 1px;
+            user-select: none;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        /* User avatar in header */
+        #userAvatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2rem;
+            margin-right: 10px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        #userAvatar:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Sidebar with user list */
+        #userList {
+            width: 220px;
+            background: rgba(17, 17, 23, 0.9);
+            backdrop-filter: blur(10px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px 15px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            transition: all 0.3s ease;
+        }
+
+        #userList h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #fff;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.5);
+            padding-bottom: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .user {
+            cursor: pointer;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+            font-weight: 500;
+            color: #fff;
+            position: relative;
+            backdrop-filter: blur(5px);
+        }
+
+        .user:hover {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            border-color: rgba(102, 126, 234, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+            color: #fff;
+        }
+
+        /* Red dot for unread messages */
+        .user.unread {
+            position: relative;
+        }
+
+        .user.unread::after {
+            content: '';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 10px;
+            height: 10px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 1px 3px rgba(255, 107, 107, 0.3);
+            z-index: 1;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.7;
+                transform: scale(1.1);
+            }
+        }
+
+        .user.unread:hover::after {
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+
+        /* Chat box area */
+        #chatBox {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 25px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        #chatWith {
+            margin: 0 0 15px 0;
+            font-weight: 700;
+            font-size: 1.4rem;
+            color: #fff;
+            border-bottom: 2px solid rgba(102, 126, 234, 0.5);
+            padding-bottom: 8px;
+            user-select: none;
+            transition: all 0.3s ease;
+        }
+
+        #messages {
+            flex-grow: 1;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            overflow-y: auto;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
+            font-size: 0.95rem;
+            line-height: 1.4;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            backdrop-filter: blur(5px);
+        }
+
+        #messages p {
+            margin: 0;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            transition: all 0.3s ease;
+            animation: fadeInMessage 0.4s ease-out;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        @keyframes fadeInMessage {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Received messages (from others) */
+        #messages p.messages {
+            background: rgba(255, 255, 255, 0.05);
+            align-self: flex-start;
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Sent messages (from me) */
+        #messages p.messageses {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            color: #fff;
+            align-self: flex-end;
+            border-color: rgba(102, 126, 234, 0.3);
+        }
+
+        #messages p:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        #inputBox {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        #messageInput {
+            flex-grow: 1;
+            padding: 12px 15px;
+            font-size: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 25px;
+            outline: none;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            backdrop-filter: blur(5px);
+        }
+
+        #messageInput::placeholder {
+            color: #a0a0a0;
+        }
+
+        #messageInput:focus {
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-1px);
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-weight: 600;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        button:hover::before {
+            left: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: linear-gradient(135deg, #666 0%, #555 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Scrollbar styling */
+        #userList::-webkit-scrollbar,
+        #messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #userList::-webkit-scrollbar-thumb,
+        #messages::-webkit-scrollbar-thumb {
+            background: rgba(102, 126, 234, 0.5);
+            border-radius: 3px;
+        }
+
+        #userList::-webkit-scrollbar-track,
+        #messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #userList::-webkit-scrollbar-thumb:hover,
+        #messages::-webkit-scrollbar-thumb:hover {
+            background: rgba(102, 126, 234, 0.7);
+        }
+
+        /* Toast notification */
+        #toast {
+            display: none;
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+            color: white;
+            padding: 10px 16px;
+            border-radius: 8px;
+            animation: fadeInOut 2.5s forwards, slideIn 0.3s ease;
+            font-family: 'Inter', sans-serif;
+            box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+            z-index: 1000;
+            max-width: 300px;
+            word-wrap: break-word;
+        }
+
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                opacity: 0;
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #appContainer {
+                flex-direction: column;
+                height: auto;
+                margin: 10px;
+            }
+
+            #userList {
+                width: 100%;
+                max-height: 200px;
+                order: 2;
+            }
+
+            #chatBox {
+                order: 1;
+                padding: 15px;
+            }
+
+            header {
+                padding: 15px 20px;
+                font-size: 1.5rem;
+            }
+
+            .user {
+                padding: 8px 10px;
+                font-size: 0.9rem;
+            }
+
+            #messages p {
+                max-width: 85%;
+            }
+
+            #messageInput {
+                padding: 10px 12px;
+                font-size: 0.9rem;
+            }
+
+            button {
+                padding: 10px 20px;
+                font-size: 0.9rem;
+            }
+
+            #chatWith {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div style="display:flex; align-items:center;">
+            <div id="userAvatar"></div>
+            <h4 th:text="${name}"></h4>
+        </div>
+        <div id="toast"></div>
+    </header>
+
+    <div id="appContainer">
+        <div id="userList">
+            <h3>Users</h3>
+            <div th:each="user : ${users}">
+                <!-- show the name, pass the ID -->
+                <div class="user" th:text="${user.id}" th:attr="data-id=${user.id}"></div>
+            </div>
+        </div>
+
+        <div id="chatBox">
+            <h3 id="chatWith">Select a user to chat</h3>
+            <div id="messages"></div>
+            <div id="inputBox">
+                <input type="text" id="messageInput" placeholder="Type your message" autocomplete="off" />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        let stompClient = null;
+        let currentRecipient = null;
+        let reconnectDelay = 5000; // 5 seconds
+        let isReconnecting = false;
+
+        function connect() {
+            const socket = new SockJS('/ws');
+
+            stompClient = Stomp.over(socket);
+            stompClient.debug = null; // disable verbose logging
+
+            // Heartbeats (keep connection alive)
+            stompClient.heartbeat.outgoing = 10000;
+            stompClient.heartbeat.incoming = 10000;
+
+            stompClient.connect({}, function (frame) {
+                console.log('✅ Connected: ' + frame);
+                isReconnecting = false;
+
+                // Subscribe again after reconnect
+                stompClient.subscribe('/user/queue/messages', function (messageOutput) {
+                    const msg = JSON.parse(messageOutput.body);
+                    console.log('📩 Received private message: ', msg);
+                    const userDiv = document.querySelector(`[data-id="${msg.sender}"]`);
+
+                    if (!currentRecipient || msg.sender !== currentRecipient) {
+                        const toast = document.getElementById('toast');
+                        const truncatedContent = msg.content.length > 50 ? msg.content.substring(0, 50) + '...' : msg.content;
+                        toast.innerHTML = `New message from ${msg.sender}: ${truncatedContent}`;
+                        toast.style.display = 'block';
+                        setTimeout(() => toast.style.display = 'none', 2500);
+
+                        if (userDiv) userDiv.classList.add('unread');
+                    } else {
+                        if (userDiv) userDiv.classList.remove('unread');
+                        showMessage(msg.sender + ': ' + msg.content, msg);
+                    }
+                });
+            }, function (error) {
+                console.warn('⚠️ STOMP error: Lost connection.', error);
+                if (!isReconnecting) {
+                    isReconnecting = true;
+                    console.log('⏳ Attempting to reconnect in 5 seconds...');
+                    setTimeout(connect, reconnectDelay);
+                }
+            });
+        }
+
+        window.addEventListener('load', function () {
+            const nameElement = document.querySelector('h4');
+            if (nameElement && nameElement.textContent) {
+                const firstChar = nameElement.textContent.charAt(0).toUpperCase();
+                document.getElementById('userAvatar').textContent = firstChar;
+            }
+            connect();
+
+            // Add Enter key support for sending messages
+            document.getElementById('messageInput').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+        });
+
+        document.getElementById('userList').addEventListener('click', function (e) {
+            if (e.target.classList.contains('user')) {
+                const username = e.target.dataset.id;
+                currentRecipient = username;
+                document.getElementById('chatWith').innerText = 'Chat with ' + e.target.innerText;
+                document.getElementById('messages').innerHTML = '';
+                e.target.classList.remove('unread');
+            }
+        });
+
+        function sendMessage() {
+            const content = document.getElementById('messageInput').value.trim();
+            if (!currentRecipient) {
+                alert('Select a user first!');
+                return;
+            }
+            if (content === '') return;
+
+            stompClient.send("/app/chat.private", {}, JSON.stringify({
+                to: currentRecipient,
+                content: content
+            }));
+
+            showMessage('Me: ' + content);
+            document.getElementById('messageInput').value = '';
+        }
+
+        function showMessage(text, msg) {
+            const messagesDiv = document.getElementById('messages');
+            const p = document.createElement('p');
+            p.textContent = text;
+            messagesDiv.appendChild(p);
+            if (msg && msg.sender === currentRecipient) {
+                p.classList.add('messages'); // Message from other user (received)
+            } else if (!msg) {
+                p.classList.add('messageses'); // Message from me (sent)
+            }
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+    </script>
+
+</body>
+
+</html>
