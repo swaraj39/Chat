@@ -4,6 +4,8 @@ import com.example.SpringWebSocket.Model.Channel;
 import com.example.SpringWebSocket.Model.Users;
 import com.example.SpringWebSocket.Repository.ChannelRepo;
 import com.example.SpringWebSocket.Repository.UserRepo;
+import com.example.SpringWebSocket.Services.EmailService;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -28,6 +30,8 @@ public class FrontController {
     private ChatController chatController;
     @Autowired
     private SimpMessagingTemplate simpMessagingTemplate;
+    @Autowired
+    private EmailService emailService;
 
     @GetMapping("/")
     public String home() {
@@ -170,4 +174,21 @@ public class FrontController {
         channelRepo.deleteById(optionalChannel);
         return ResponseEntity.ok("Channel deleted");
     }
+
+    // @PostMapping("/share")
+    // public String shareChannel(@RequestParam("channelname") String name, Model model) {
+    //     Channel channel = channelRepo.findById(name).orElseThrow();
+    //     model.addAttribute("channel",channel);
+    //     return "join";
+    // }
+
+    // @PostMapping("/joinChannel")
+    // public String Sendmail(@RequestParam("email") String email,
+    //                        @RequestParam("channelname") String channelname,
+    //                        Model model) {
+    // Channel channel = channelRepo.findById(channelname).orElseThrow();
+    // emailService.sendMail(channel,email);
+    // System.out.println("mail sent");
+    // return "LoginAndSignup";    
+    // }
 }
